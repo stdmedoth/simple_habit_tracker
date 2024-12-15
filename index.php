@@ -20,12 +20,14 @@ $db->exec("CREATE TABLE IF NOT EXISTS habit_progress (
     habit_id INTEGER NOT NULL,
     date DATE NOT NULL,
     successes INTEGER DEFAULT 0,
+    skip_day INTEGER DEFAULT 0,
     failures INTEGER DEFAULT 0,
     FOREIGN KEY (habit_id) REFERENCES habits (id)
 )");
 
 // Add a new habit
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['name'])) {
+
     $stmt = $db->prepare("INSERT INTO habits (name, description, success_goal, failure_goal) VALUES (:name, :description, :success_goal, :failure_goal)");
     $stmt->bindParam(':name', $_POST['name']);
     $stmt->bindParam(':description', $_POST['description']);
@@ -48,16 +50,33 @@ if (isset($_GET['update_progress'])) {
     $progress = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($progress) {
+        $value = 0;
         // Update progress
-        $column = $type === 'success' ? 'successes' : 'failures';
-        $db->prepare("UPDATE habit_progress SET $column = $column + 1 WHERE id = :id")
+        switch ($type) {
+            case 'success':
+                $column = 'successes';
+                break;
+            case 'failure':
+                $column = 'failures';
+                break;
+            case 'skip_day':
+                $column = 'skip_day';
+                break;
+        }
+        
+        if($progress[$column] == 0){
+            $value = 1;
+        }
+        
+        $db->prepare("UPDATE habit_progress SET $column = $value WHERE id = :id")
             ->execute(['id' => $progress['id']]);
     } else {
         // Insert new progress
         $successes = $type === 'success' ? 1 : 0;
         $failures = $type === 'failure' ? 1 : 0;
-        $db->prepare("INSERT INTO habit_progress (habit_id, date, successes, failures) VALUES (:habit_id, :date, :successes, :failures)")
-            ->execute(['habit_id' => $habit_id, 'date' => $date, 'successes' => $successes, 'failures' => $failures]);
+        $skip_day = $type === 'skip_day' ? 1 : 0;
+        $db->prepare("INSERT INTO habit_progress (habit_id, date, successes, skip_day, failures) VALUES (:habit_id, :date, :successes, :skip_day, :failures)")
+            ->execute(['habit_id' => $habit_id, 'date' => $date, 'successes' => $successes, 'skip_day' => $skip_day, 'failures' => $failures]);
     }
     header('Location: ' . $_SERVER['PHP_SELF']);
     exit;
@@ -122,6 +141,17 @@ $habits = $db->query("SELECT * FROM habits")->fetchAll(PDO::FETCH_ASSOC);
             text-decoration: line-through;
             color: green;
         }
+        
+        .failed {
+            text-decoration: line-through;
+            color: red;
+        }
+
+        .skipped {
+            text-decoration: line-through;
+            color: khaki;
+        }
+
 
         .success {
             background-color: lightgreen;
@@ -132,7 +162,7 @@ $habits = $db->query("SELECT * FROM habits")->fetchAll(PDO::FETCH_ASSOC);
         }
 
         .neutral {
-            background-color: yellow;
+            background-color: khaki;
         }
     </style>
 </head>
@@ -169,7 +199,27 @@ $habits = $db->query("SELECT * FROM habits")->fetchAll(PDO::FETCH_ASSOC);
             <?php foreach ($habits as $habit): ?>
                 <tr>
                     <td><?= htmlspecialchars($habit['id']) ?></td>
-                    <td class="<?= $habit['completed'] ? 'completed' : '' ?>">
+                    <?php
+                    $date = date('Y-m-d');
+                    $stmt = $db->prepare("SELECT * FROM habit_progress WHERE habit_id = :habit_id AND date = :date");
+                    $stmt->execute(['habit_id' => $habit['id'], 'date' => $date]);
+                    $progress = $stmt->fetch(PDO::FETCH_ASSOC);
+                    $class = '';
+                    if ($progress) {
+                        if ($progress['successes'] > $progress['failures']) {
+                            $class = 'completed';
+                        }
+
+                        if ($progress['failures'] > $progress['successes']) {
+                            $class = 'failed';
+                        }
+                        
+                        if ($progress['skip_day']) {
+                            $class = 'skipped';
+                        }
+                    }
+                    ?>
+                    <td class="<?= $class ?>">
                         <?= htmlspecialchars($habit['name']) ?>
                     </td>
                     <td><?= htmlspecialchars($habit['description']) ?></td>
@@ -180,14 +230,21 @@ $habits = $db->query("SELECT * FROM habits")->fetchAll(PDO::FETCH_ASSOC);
                             <input type="hidden" name="update_progress" value="<?= $habit['id'] ?>">
                             <input type="hidden" name="type" value="success">
                             <input type="date" name="date" value="<?= date('Y-m-d') ?>" required>
-                            <button type="submit">+ Success</button>
+                            <button type="submit">Success</button>
                         </form>
 
                         <form method="GET" style="display: inline;">
                             <input type="hidden" name="update_progress" value="<?= $habit['id'] ?>">
                             <input type="hidden" name="type" value="failure">
                             <input type="date" name="date" value="<?= date('Y-m-d') ?>" required>
-                            <button type="submit">+ Failure</button>
+                            <button type="submit">Failure</button>
+                        </form>
+
+                        <form method="GET" style="display: inline;">
+                            <input type="hidden" name="update_progress" value="<?= $habit['id'] ?>">
+                            <input type="hidden" name="type" value="skip_day">
+                            <input type="date" name="date" value="<?= date('Y-m-d') ?>" required>
+                            <button type="submit">Skip</button>
                         </form>
                         <a href="?delete=<?= $habit['id'] ?>" onclick="return confirm('Are you sure you want to delete this habit?')">Delete</a>
                     </td>
@@ -220,7 +277,7 @@ $habits = $db->query("SELECT * FROM habits")->fetchAll(PDO::FETCH_ASSOC);
                         if ($progress) {
                             echo "<td class='" .
                                 ($progress['successes'] > $progress['failures'] ? 'success' : ($progress['failures'] > $progress['successes'] ? 'failure' : '')) .
-                                "'>".($progress['successes'] > $progress['failures'] ? '&#x2713;' . $progress['successes'] : ($progress['failures'] > $progress['successes'] ? '&#x2717;' .$progress['failures'] : '')) ."</td>";
+                                "'>" . ($progress['successes'] > $progress['failures'] ? '&#x2713;' . $progress['successes'] : ($progress['failures'] > $progress['successes'] ? '&#x2717;' . $progress['failures'] : '')) . "</td>";
                         } else {
                             echo "<td></td>";
                         }
