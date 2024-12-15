@@ -52,6 +52,16 @@ The "Monthly Progress" section shows a summary of successes and failures for eac
 
 To delete a habit, click the "Delete" link next to the habit. A confirmation prompt will appear before the habit is removed.
 
+
+## Screenshots
+
+### Screen 1
+![Tela 1](img/Screenshot_20241215_145333.png)
+
+### Screen 2
+![Tela 2](img/Screenshot_20241215_145355.png)
+
+
 ## Database Schema
 
 ### Habits Table
