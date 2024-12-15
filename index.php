@@ -63,11 +63,11 @@ if (isset($_GET['update_progress'])) {
                 $column = 'skip_day';
                 break;
         }
-        
-        if($progress[$column] == 0){
+
+        if ($progress[$column] == 0) {
             $value = 1;
         }
-        
+
         $db->prepare("UPDATE habit_progress SET $column = $value WHERE id = :id")
             ->execute(['id' => $progress['id']]);
     } else {
@@ -141,7 +141,7 @@ $habits = $db->query("SELECT * FROM habits")->fetchAll(PDO::FETCH_ASSOC);
             text-decoration: line-through;
             color: green;
         }
-        
+
         .failed {
             text-decoration: line-through;
             color: red;
@@ -163,6 +163,48 @@ $habits = $db->query("SELECT * FROM habits")->fetchAll(PDO::FETCH_ASSOC);
 
         .neutral {
             background-color: khaki;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            box-sizing: border-box;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        input[type="date"]
+        {
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        input[type="text"]:focus,
+        textarea:focus {
+            border-color: #007BFF;
+            box-shadow: 0 0 8px rgba(0, 123, 255, 0.5);
+            outline: none;
+        }
+
+        button {
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #0056b3;
         }
     </style>
 </head>
@@ -213,7 +255,7 @@ $habits = $db->query("SELECT * FROM habits")->fetchAll(PDO::FETCH_ASSOC);
                         if ($progress['failures'] > $progress['successes']) {
                             $class = 'failed';
                         }
-                        
+
                         if ($progress['skip_day']) {
                             $class = 'skipped';
                         }
@@ -223,8 +265,35 @@ $habits = $db->query("SELECT * FROM habits")->fetchAll(PDO::FETCH_ASSOC);
                         <?= htmlspecialchars($habit['name']) ?>
                     </td>
                     <td><?= htmlspecialchars($habit['description']) ?></td>
-                    <td><?= htmlspecialchars($habit['success_goal']) ?></td>
-                    <td><?= htmlspecialchars($habit['failure_goal']) ?></td>
+
+                    <?php
+                    $date_initial = date('Y-m-01');
+                    $date_final = date('Y-m-t');
+
+                    $stmt = $db->prepare("SELECT sum(successes) as successes, sum(failures) as failures  FROM habit_progress WHERE habit_id = :habit_id AND date >= :date_initial and date <= :date_final");
+                    $stmt->execute([
+                        'habit_id' => $habit['id'],
+                        'date_initial' => $date_initial,
+                        'date_final' => $date_final
+                    ]);
+                    $progress = $stmt->fetch(PDO::FETCH_ASSOC);
+                    $class = '';
+                    if ($progress) {
+                        if ($progress['successes'] > $habit['success_goal']) {
+                            $class = 'completed';
+                        }
+
+                        if ($progress['failures'] > $habit['failure_goal']) {
+                            $class = 'failed';
+                        }
+                        $success_perc = number_format($progress['successes'] / $habit['success_goal'] * 100, 0);
+                        $failure_perc = number_format($progress['failures'] / $habit['failure_goal'] * 100, 0);
+                    }
+                    ?>
+
+
+                    <td class="<?= $class ?>"><?= htmlspecialchars($habit['success_goal']) . " ({$success_perc}%)" ?></td>
+                    <td class="<?= $class ?>"><?= htmlspecialchars($habit['failure_goal']) . " ({$failure_perc}%)" ?></td>
                     <td>
                         <form method="GET" style="display: inline;">
                             <input type="hidden" name="update_progress" value="<?= $habit['id'] ?>">
@@ -237,7 +306,7 @@ $habits = $db->query("SELECT * FROM habits")->fetchAll(PDO::FETCH_ASSOC);
                             <input type="hidden" name="update_progress" value="<?= $habit['id'] ?>">
                             <input type="hidden" name="type" value="failure">
                             <input type="date" name="date" value="<?= date('Y-m-d') ?>" required>
-                            <button type="submit">Failure</button>
+                            <button class="failure" type="submit">Failure</button>
                         </form>
 
                         <form method="GET" style="display: inline;">
@@ -277,9 +346,9 @@ $habits = $db->query("SELECT * FROM habits")->fetchAll(PDO::FETCH_ASSOC);
                         if ($progress) {
                             echo "<td class='" .
                                 ($progress['successes'] > $progress['failures'] ? 'success' : ($progress['failures'] > $progress['successes'] ? 'failure' : '')) .
-                                "'>" . ($progress['successes'] > $progress['failures'] ? '&#x2713;' . $progress['successes'] : ($progress['failures'] > $progress['successes'] ? '&#x2717;' . $progress['failures'] : '')) . "</td>";
+                                "'>" . ($progress['successes'] > $progress['failures'] ? '&#x2713;' : ($progress['failures'] > $progress['successes'] ? '&#x2717;' : '')) . "</td>";
                         } else {
-                            echo "<td></td>";
+                            echo "<td>-</td>";
                         }
                     }
                     ?>
