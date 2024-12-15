@@ -1,4 +1,5 @@
 <?php
+
 // Database connection
 $db = new PDO('sqlite:habits.db');
 
@@ -218,8 +219,8 @@ $habits = $db->query("SELECT * FROM habits")->fetchAll(PDO::FETCH_ASSOC);
 
                         if ($progress) {
                             echo "<td class='" .
-                                ($progress['successes'] >= $progress['failures'] ? 'success' : ($progress['failures'] >= $progress['successes'] ? 'failure' : '')) .
-                                "'>".($progress['successes'] >= $progress['failures'] ? '&#x2713;' . $progress['successes'] : ($progress['failures'] >= $progress['successes'] ? '&#x2717;' .$progress['failures'] : '')) ."</td>";
+                                ($progress['successes'] > $progress['failures'] ? 'success' : ($progress['failures'] > $progress['successes'] ? 'failure' : '')) .
+                                "'>".($progress['successes'] > $progress['failures'] ? '&#x2713;' . $progress['successes'] : ($progress['failures'] > $progress['successes'] ? '&#x2717;' .$progress['failures'] : '')) ."</td>";
                         } else {
                             echo "<td></td>";
                         }
